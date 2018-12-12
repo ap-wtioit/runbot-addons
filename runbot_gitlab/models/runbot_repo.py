@@ -50,6 +50,11 @@ class RunbotRepo(models.Model):
 
     uses_gitlab = fields.Boolean(help='Enable the ability to use gitlab '
                                       'instead of github')
+    warnings_are_errors = fields.Boolean(
+        'Treat warnings as errors',
+        default=True, help='When runbot reports warnings, report that as '
+        'error to gitlab',
+    )
 
     def _git(self, cmd):
         """Rewriting the parent method to get merge_request from gitlab"""
@@ -96,7 +101,17 @@ class RunbotRepo(models.Model):
                         else response.text)
                 if 'merge_requests?iid=' in url:
                     json = json[0]
-                    json['head'] = {'ref': json['target_branch']}
+
+                    json['head'] = {
+                        'ref': json['target_branch'],
+                        # github api returns a label like
+                        # 'source-project-name:source-branch-name' the closest
+                        # we got in gitlab api is
+                        # 'source_project_id:source_branch'
+                        # (without additional http/db requests)
+                        'label': '%s:%s' % (
+                            json['source_project_id'], json['source_branch']),
+                    }
                     json['base'] = {'ref': json['source_branch']}
                 if '/commits/' in url:
                     for own_key in ['author', 'committer']:
